@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Lausanne Marathon – où et quand il passe</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root{--ink:#13232a;--muted:#6b797e;--line:#dfe5e5;--bg:#f4f6f6;--aller:#1f6fb2;--retour:#d9480f;--gold:#b97d0c;--cff:#eb0000;--m2:#0067ac;--ok:#2b8a3e;--warn:#e67700;--bad:#c92a2a}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--bg)}
+.app{display:flex;flex-direction:column;height:100%}
+header{padding:10px max(14px,env(safe-area-inset-left)) 8px;background:#fff;border-bottom:1px solid var(--line)}
+h1{font-size:18px;margin:0 0 2px}
+.sub{font-size:13px;color:var(--muted)}
+.now{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin-top:6px;font-size:14px}
+.now b{font-variant-numeric:tabular-nums}
+#map{flex:1 1 auto;min-height:48vh}
+.panel{background:#fff;border-top:1px solid var(--line);max-height:50vh;overflow:auto;padding:8px max(14px,env(safe-area-inset-left)) calc(14px + env(safe-area-inset-bottom))}
+.controls{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;font-size:14px;margin-bottom:4px}
+.controls input[type=range]{flex:1 1 200px;accent-color:var(--gold)}
+.controls input[type=number]{width:56px;font-size:15px;padding:3px 5px}
+button{font:600 14px system-ui,sans-serif;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer}
+button.on{background:var(--gold);color:#fff;border-color:var(--gold)}
+/* Timeline */
+ol.tl{list-style:none;margin:6px 0 0;padding:0;position:relative}
+ol.tl:before{content:"";position:absolute;left:70px;top:14px;bottom:10px;width:2px;background:var(--line)}
+ol.tl li{display:grid;grid-template-columns:48px 28px 1fr auto;align-items:center;gap:6px;padding:7px 4px;border-radius:8px;cursor:pointer;position:relative}
+ol.tl li:hover{background:#f6f8f8}
+ol.tl .h{font:800 16px system-ui;font-variant-numeric:tabular-nums;text-align:right}
+ol.tl .ic{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:800 12px system-ui;color:#fff;z-index:1}
+ol.tl li.see .ic{background:var(--gold)}
+ol.tl li.train .ic{background:var(--cff);border-radius:6px}
+ol.tl li.m2 .ic{background:var(--m2);border-radius:6px}
+ol.tl li.see .h{color:var(--gold)}
+ol.tl .t{font-size:15px;line-height:1.25;min-width:0}
+ol.tl .t small{display:block;color:var(--muted);font-size:13px}
+ol.tl li.see .t b{font-size:16px}
+ol.tl li.past{opacity:.4}
+ol.tl li.next{background:#fff7e6;box-shadow:inset 3px 0 0 var(--gold)}
+.mg{font:700 12px system-ui;padding:2px 8px;border-radius:999px;color:#fff;white-space:nowrap}
+.mg.ok{background:var(--ok)}.mg.warn{background:var(--warn)}.mg.bad{background:var(--bad)}
+.foot{font-size:12px;color:var(--muted);margin-top:8px}
+.tabs{display:flex;gap:6px;margin:6px 0 2px}
+.tabs button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+#msg{font-size:13px;color:#7a5200;background:#fff7e6;border-radius:8px;padding:6px 10px;margin:4px 0}
+table{width:100%;border-collapse:collapse;font-size:15px;font-variant-numeric:tabular-nums;margin-top:4px}
+th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:6px;border-bottom:1px solid var(--line)}
+td{padding:6px;border-bottom:1px solid #eef1f1}
+tr.mrow td{font-weight:700;background:#fff7e6}
+tr.mrow td:first-child:before{content:"⏱ "}
+tr.past td{opacity:.4}
+tbody tr{cursor:pointer}
+/* Carte */
+.lbl{background:#fff;border:2px solid;border-radius:6px;padding:1px 5px;font:700 12px system-ui,sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.25);white-space:nowrap}
+.lbl small{font-weight:500;opacity:.75}
+.lbl.a{border-color:var(--aller);color:var(--aller)}
+.lbl.r{border-color:var(--retour);color:var(--retour)}
+.lbl.k{border-color:var(--ink);color:var(--ink)}
+.lbl.chip{border-color:var(--gold);color:#7a5200;background:#fff7e6}
+.lbl.cff{border-color:var(--cff);color:var(--cff)}
+.lbl.eye{border-color:var(--gold);background:var(--gold);color:#fff;font-size:13px}
+.leaflet-tooltip.lbl:before{display:none}
+.runner{width:22px;height:22px;border-radius:50%;background:var(--gold);border:3px solid #fff;box-shadow:0 0 0 2px var(--gold),0 2px 6px rgba(0,0,0,.4)}
+.cffi{width:20px;height:20px;background:var(--cff);border-radius:4px;color:#fff;font:800 13px/20px system-ui;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.mat{width:14px;height:14px;transform:rotate(45deg);background:var(--gold);border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.eyei{width:28px;height:28px;border-radius:50%;background:var(--gold);border:3px solid #fff;color:#fff;font:800 14px/22px system-ui;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.leaflet-popup-content{font-size:15px;line-height:1.45}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Marathon de Lausanne · objectif 3:00</h1>
+    <div class="sub">Dimanche 25 octobre · départ 10:05 · arrivée 13:05 · touche le tracé pour voir l'heure de passage</div>
+    <div class="now"><span>⏱ <b id="clk">–</b></span><span>📍 <b id="pos">–</b></span><span id="state" class="sub"></span></div>
+  </header>
+  <div id="map"></div>
+  <div class="panel">
+    <div class="controls">
+      <button id="live" type="button">En direct</button>
+      <input id="t" type="range" min="0" max="10800" step="10" value="0" aria-label="Simuler l'heure">
+      <label>Départ 10:05 + <input id="off" type="number" min="0" max="30" step="1" value="0"> min</label>
+    </div>
+    <div id="msg" hidden></div>
+    <div class="tabs"><button type="button" data-tab="plan" class="on">Plan en train</button><button type="button" data-tab="splits">Temps de passage</button></div>
+    <section id="tab-plan">
+      <ol class="tl" id="tl"></ol>
+      <div class="foot">Pastille = marge, marche comprise. Vérifier les trains dans l'app CFF le matin même.</div>
+    </section>
+    <section id="tab-splits" hidden>
+      <table><thead><tr><th>Point</th><th>Heure</th><th>Chrono</th></tr></thead><tbody id="splits"></tbody></table>
+      <div class="foot">⏱ = tapis de chrono officiel (suivi en ligne). Allure constante 4:16/km.</div>
+    </section>
+  </div>
+</div>
+<script>
+const D={"pts":[[46.51387,6.62066,412],[46.51309,6.62192,412],[46.51272,6.62271,412],[46.51263,6.62304,412],[46.51177,6.62866,416],[46.51081,6.63241,418],[46.51049,6.6332,419],[46.50966,6.63478,419],[46.50957,6.63508,418],[46.50952,6.6351,417],[46.50949,6.63519,417],[46.50952,6.63532,415],[46.50881,6.63721,410],[46.5081,6.63846,406],[46.50778,6.6395,395],[46.50699,6.64061,391],[46.5068,6.64115,389],[46.50666,6.64176,387],[46.50658,6.64237,386],[46.50651,6.64532,383],[46.50642,6.65365,383],[46.50659,6.65631,383],[46.50681,6.65883,382],[46.5068,6.65954,382],[46.50667,6.66068,382],[46.50666,6.66121,383],[46.50671,6.6617,383],[46.5072,6.66455,384],[46.50721,6.66526,384],[46.50715,6.66587,384],[46.50702,6.66638,384],[46.50639,6.66844,384],[46.50616,6.66984,384],[46.50605,6.6702,384],[46.50543,6.67156,383],[46.50516,6.6723,383],[46.50501,6.67312,383],[46.50479,6.67495,382],[46.50453,6.6759,380],[46.50396,6.67885,378],[46.50391,6.67941,378],[46.50396,6.6809,377],[46.50377,6.68154,378],[46.50298,6.68336,379],[46.50276,6.68397,379],[46.50265,6.6845,379],[46.5025,6.68482,379],[46.50231,6.68543,380],[46.50222,6.68594,380],[46.50209,6.68735,380],[46.5021,6.68753,380],[46.50223,6.68789,380],[46.5022,6.68816,380],[46.50199,6.68879,380],[46.5016,6.68944,379],[46.50157,6.68958,379],[46.50116,6.6902,379],[46.50083,6.69103,378],[46.50061,6.69204,378],[46.50049,6.69387,378],[46.50016,6.69575,378],[46.49901,6.69887,379],[46.49865,6.70035,380],[46.49841,6.70094,381],[46.49774,6.70201,383],[46.49698,6.70391,384],[46.49612,6.70542,384],[46.49578,6.70616,384],[46.49513,6.70783,385],[46.49492,6.70823,385],[46.49156,6.7131,384],[46.49074,6.71484,383],[46.49005,6.71604,383],[46.48875,6.71863,383],[46.48808,6.71974,382],[46.48751,6.72091,382],[46.48734,6.72145,382],[46.48726,6.72211,383],[46.48728,6.72278,384],[46.48752,6.72493,386],[46.48766,6.72555,386],[46.48805,6.7268,388],[46.48887,6.72849,391],[46.48994,6.73132,391],[46.49088,6.73432,391],[46.491,6.73498,391],[46.49103,6.73585,389],[46.49093,6.73668,388],[46.4907,6.73749,387],[46.49006,6.7391,387],[46.48989,6.73986,387],[46.48981,6.74108,387],[46.48984,6.74389,388],[46.4897,6.74478,389],[46.48955,6.74525,389],[46.48891,6.7466,390],[46.48829,6.74839,390],[46.48813,6.74875,390],[46.4874,6.74972,389],[46.48653,6.75207,388],[46.48615,6.75288,387],[46.48567,6.75352,387],[46.48481,6.75442,387],[46.48457,6.75475,387],[46.48439,6.75508,387],[46.48399,6.75613,387],[46.48351,6.75695,387],[46.48304,6.75761,387],[46.48242,6.75818,387],[46.48212,6.75838,387],[46.48166,6.75887,387],[46.4811,6.75971,387],[46.48014,6.76163,387],[46.47933,6.76357,387],[46.47836,6.76632,386],[46.47772,6.7679,386],[46.4771,6.77004,385],[46.47587,6.77366,385],[46.47512,6.7757,385],[46.47486,6.77657,387],[46.47482,6.77687,387],[46.47484,6.77751,388],[46.47472,6.77849,387],[46.47428,6.77982,388],[46.47424,6.78022,387],[46.47435,6.78154,383],[46.47414,6.78263,383],[46.47411,6.78316,383],[46.47416,6.78357,383],[46.4745,6.78516,383],[46.4745,6.78621,383],[46.47462,6.78711,383],[46.47471,6.78862,383],[46.47467,6.78927,382],[46.47458,6.78978,382],[46.47419,6.79118,382],[46.47368,6.79373,384],[46.47343,6.79445,384],[46.47298,6.7954,385],[46.47284,6.79585,385],[46.47278,6.79617,386],[46.47266,6.79886,387],[46.47263,6.79904,386],[46.47205,6.80067,386],[46.47194,6.80118,386],[46.47184,6.80189,387],[46.47168,6.80406,387],[46.47156,6.80495,387],[46.471,6.80766,389],[46.47063,6.81376,390],[46.47036,6.81994,389],[46.47021,6.8211,390],[46.46997,6.82187,391],[46.46969,6.82238,392],[46.46943,6.82262,392],[46.46889,6.82295,391],[46.46869,6.82317,391],[46.46855,6.8234,390],[46.46838,6.82402,385],[46.46836,6.82443,384],[46.46857,6.82586,383],[46.46868,6.82799,382],[46.46864,6.82867,381],[46.46841,6.83013,381],[46.46837,6.8334,383],[46.46833,6.83375,384],[46.46812,6.83437,386],[46.46747,6.83532,387],[46.46669,6.836,385],[46.46595,6.83637,381],[46.46502,6.83433,379],[46.46496,6.83433,378],[46.46451,6.83476,378],[46.4642,6.83494,377],[46.4635,6.8352,376],[46.46254,6.83534,375],[46.46193,6.83535,375],[46.46126,6.83524,374],[46.46116,6.83526,373],[46.46111,6.83536,373],[46.46116,6.83526,373],[46.46126,6.83524,374],[46.46193,6.83535,375],[46.46254,6.83534,375],[46.4635,6.8352,376],[46.46393,6.83506,376],[46.46446,6.83479,376],[46.46501,6.83432,378],[46.46595,6.83637,384],[46.46656,6.83609,386],[46.46737,6.83544,387],[46.46801,6.83455,387],[46.46826,6.83401,385],[46.46837,6.8334,383],[46.46841,6.83024,380],[46.46867,6.82833,380],[46.46856,6.82571,384],[46.46843,6.82443,385],[46.46843,6.82406,386],[46.46857,6.8235,389],[46.46884,6.82306,391],[46.46896,6.82291,391],[46.4695,6.82257,391],[46.46969,6.82238,391],[46.47002,6.82174,391],[46.47025,6.82091,390],[46.47034,6.82026,390],[46.47057,6.81565,389],[46.47061,6.8155,390],[46.47073,6.81377,391],[46.47079,6.81243,391],[46.47078,6.81172,391],[46.47096,6.80798,390],[46.47113,6.80689,389],[46.47161,6.80465,387],[46.47194,6.80118,386],[46.47205,6.80067,386],[46.47263,6.79904,386],[46.47266,6.79886,387],[46.47278,6.79617,386],[46.47284,6.79585,385],[46.47298,6.7954,385],[46.47343,6.79445,384],[46.47368,6.79373,383],[46.47419,6.79118,382],[46.47458,6.78978,382],[46.47467,6.78927,382],[46.47471,6.78862,382],[46.47462,6.78711,383],[46.4745,6.78621,383],[46.4745,6.78516,383],[46.47416,6.78357,383],[46.47411,6.78316,383],[46.47414,6.78263,383],[46.47435,6.78154,383],[46.47424,6.78022,387],[46.47428,6.77982,388],[46.47472,6.77849,387],[46.47484,6.77751,388],[46.47482,6.77687,387],[46.47486,6.77657,387],[46.47512,6.7757,385],[46.47607,6.77308,385],[46.4771,6.77004,385],[46.47772,6.7679,386],[46.47836,6.76632,387],[46.47899,6.76447,387],[46.47967,6.7627,388],[46.48006,6.76182,388],[46.48079,6.76028,388],[46.4813,6.75938,387],[46.48188,6.75863,387],[46.48291,6.75774,387],[46.48325,6.75733,387],[46.4839,6.75629,387],[46.48451,6.75483,386],[46.48489,6.75433,386],[46.48589,6.75325,387],[46.48615,6.75288,387],[46.48653,6.75207,388],[46.48733,6.74988,389],[46.48748,6.74959,389],[46.48801,6.74893,390],[46.48821,6.74859,391],[46.48874,6.74705,390],[46.48906,6.74624,390],[46.48952,6.74533,389],[46.48973,6.74464,389],[46.4898,6.74425,389],[46.48988,6.74316,389],[46.48986,6.74085,389],[46.48993,6.74055,388],[46.49,6.73975,387],[46.49012,6.73916,387],[46.49025,6.73876,386],[46.49017,6.7381,383],[46.49039,6.73727,384],[46.49067,6.73555,387],[46.49073,6.73457,388],[46.49069,6.7334,391],[46.49022,6.73144,393],[46.49007,6.73116,393],[46.48927,6.72898,391],[46.48897,6.72776,391],[46.48935,6.72922,392],[46.49007,6.73116,394],[46.49022,6.73144,394],[46.49069,6.7334,390],[46.49073,6.73457,388],[46.49067,6.73555,386],[46.49039,6.73727,384],[46.49017,6.7381,380],[46.49007,6.73771,378],[46.48971,6.73677,377],[46.48952,6.73589,375],[46.4894,6.73593,375],[46.48908,6.73424,375],[46.48873,6.73332,375],[46.48845,6.73283,376],[46.48745,6.73164,376],[46.48679,6.73076,377],[46.48674,6.73049,378],[46.48693,6.73029,377],[46.48778,6.73147,377],[46.48834,6.73213,376],[46.48876,6.73282,376],[46.48906,6.73359,376],[46.48942,6.73477,377],[46.48935,6.73354,379],[46.48923,6.73298,380],[46.48903,6.73227,380],[46.48793,6.72962,381],[46.4879,6.72939,380],[46.48793,6.72924,379],[46.48773,6.72898,380],[46.48753,6.72802,381],[46.48743,6.72725,381],[46.48736,6.72558,381],[46.48737,6.72534,382],[46.48752,6.72483,382],[46.48755,6.72446,382],[46.48744,6.72346,383],[46.48733,6.72329,383],[46.48726,6.72226,383],[46.48728,6.7218,382],[46.48734,6.72145,382],[46.48751,6.72091,382],[46.48808,6.71974,382],[46.48875,6.71863,383],[46.49005,6.71604,383],[46.49074,6.71484,383],[46.49156,6.7131,384],[46.49492,6.70823,385],[46.49513,6.70783,385],[46.49578,6.70616,384],[46.49612,6.70542,384],[46.49698,6.70391,384],[46.49774,6.70201,383],[46.49831,6.70113,381],[46.49857,6.70057,380],[46.49901,6.69887,379],[46.50016,6.69575,378],[46.50049,6.69387,378],[46.50061,6.69204,378],[46.50083,6.69103,378],[46.50116,6.6902,379],[46.50157,6.68958,379],[46.5016,6.68944,379],[46.50199,6.68879,379],[46.5022,6.68816,379],[46.50223,6.68789,380],[46.5021,6.68753,380],[46.50209,6.68735,380],[46.50222,6.68594,380],[46.50231,6.68543,379],[46.5025,6.68482,379],[46.50265,6.6845,379],[46.50276,6.68397,379],[46.50298,6.68336,379],[46.5036,6.68196,378],[46.50396,6.6809,378],[46.50391,6.67941,378],[46.50396,6.67885,378],[46.50458,6.67568,380],[46.50467,6.67548,381],[46.50479,6.67495,382],[46.50501,6.67312,383],[46.50516,6.6723,383],[46.50543,6.67156,383],[46.50605,6.6702,384],[46.50616,6.66984,384],[46.50639,6.66844,384],[46.50702,6.66638,384],[46.50715,6.66587,384],[46.50721,6.66526,384],[46.5072,6.66455,384],[46.50692,6.66299,383],[46.50666,6.66121,383],[46.50667,6.66068,383],[46.50678,6.65977,382],[46.50681,6.65883,382],[46.50659,6.65631,383],[46.50642,6.65365,383],[46.50642,6.65115,383],[46.50658,6.64252,381],[46.50643,6.64249,381],[46.5056,6.64204,379],[46.5054,6.64181,378],[46.50529,6.64157,378],[46.50525,6.64103,377],[46.50725,6.63336,376],[46.50735,6.63275,375],[46.50734,6.63214,375],[46.5073,6.63174,375],[46.5069,6.62997,374],[46.50701,6.62809,374],[46.50661,6.62792,374],[46.50615,6.62762,374],[46.50602,6.62765,374],[46.50571,6.62793,375],[46.50542,6.62838,376],[46.50532,6.62843,376],[46.50515,6.62822,376],[46.50507,6.62782,376],[46.50781,6.62339,374],[46.50733,6.62155,374],[46.50735,6.62147,374],[46.50763,6.62131,375],[46.50797,6.62174,375],[46.51046,6.61759,376]],"cum":[0.0,131.9,206.3,233.9,682.0,993.4,1064.8,1219.5,1244.9,1250.8,1258.6,1269.3,1436.9,1563.0,1651.7,1776.0,1823.2,1873.2,1921.6,2151.3,2799.8,3007.7,3205.5,3260.7,3350.7,3392.0,3430.5,3659.2,3714.4,3762.4,3804.7,3980.2,4092.2,4122.9,4249.9,4315.1,4381.1,4525.7,4605.3,4843.8,4887.8,5003.9,5058.2,5225.7,5279.3,5322.4,5352.5,5404.6,5445.6,5556.3,5570.4,5602.0,5623.3,5677.8,5744.9,5756.4,5823.3,5897.9,5980.4,6123.5,6274.5,6550.0,6672.2,6725.6,6838.2,7009.3,7161.9,7231.1,7380.5,7419.6,7956.5,8120.6,8242.4,8491.9,8606.9,8718.5,8764.7,8816.9,8869.1,9038.7,9089.5,9196.4,9357.4,9608.8,9865.4,9918.6,9986.4,10052.0,10120.2,10265.0,10327.2,10422.6,10641.4,10712.5,10752.8,10880.5,11036.5,11069.9,11181.8,11389.5,11465.8,11539.5,11659.4,11696.8,11729.6,11823.0,11906.8,11980.8,12063.7,12101.1,12165.6,12256.6,12441.4,12618.1,12858.7,13001.5,13182.3,13496.7,13676.8,13750.7,13774.5,13824.4,13901.9,14016.8,14048.3,14151.8,14240.0,14281.4,14313.8,14443.5,14525.3,14596.7,14714.7,14765.6,14806.6,14924.2,15131.0,15193.8,15283.6,15322.1,15347.9,15557.9,15572.3,15715.2,15756.8,15813.3,15983.2,16053.9,16274.3,16751.2,17233.6,17325.5,17391.3,17442.1,17477.0,17543.2,17571.6,17595.5,17647.5,17679.5,17793.4,17959.8,18012.9,18129.6,18384.4,18412.0,18465.8,18570.1,18673.0,18761.5,18952.1,18958.9,19019.8,19057.6,19139.3,19248.4,19317.4,19393.6,19405.1,19414.7,19424.3,19435.7,19512.0,19581.0,19690.1,19739.9,19803.4,19875.6,20067.5,20139.8,20244.5,20344.7,20395.4,20444.5,20690.7,20842.3,21046.8,21147.6,21176.4,21222.8,21268.7,21286.6,21353.2,21379.3,21441.5,21511.2,21562.9,21922.9,21935.4,22070.9,22175.4,22230.8,22522.8,22609.8,22792.6,23065.4,23107.0,23249.9,23264.3,23474.3,23500.1,23538.6,23628.4,23691.2,23898.0,24015.6,24056.6,24107.5,24225.5,24296.9,24378.7,24508.4,24540.8,24582.2,24670.4,24773.9,24805.4,24920.3,24997.8,25047.7,25071.5,25145.4,25376.0,25639.9,25820.7,25963.5,26124.2,26282.0,26363.5,26509.1,26599.9,26687.7,26823.3,26873.2,26982.6,27115.6,27173.6,27314.5,27355.7,27432.0,27625.1,27653.3,27732.3,27767.1,27901.1,27973.9,28061.8,28120.5,28151.9,28237.2,28417.1,28441.8,28504.6,28552.5,28586.9,28639.1,28708.3,28846.0,28922.6,29013.8,29175.4,29203.0,29395.3,29496.2,29617.7,29789.4,29817.0,29978.6,30069.8,30146.4,30284.0,30353.3,30385.7,30469.4,30541.2,30555.1,30691.6,30773.5,30823.1,30969.3,31070.6,31092.4,31118.9,31251.9,31333.4,31405.1,31474.0,31574.5,31670.6,31716.3,31776.0,32017.0,32035.2,32047.4,32077.7,32155.8,32216.8,32347.1,32365.8,32409.0,32438.0,32516.9,32535.0,32615.6,32651.5,32679.6,32725.8,32837.4,32952.4,33202.0,33323.7,33487.9,34024.7,34063.8,34213.2,34282.5,34435.0,34606.1,34700.2,34752.8,34894.2,35169.7,35320.7,35463.8,35546.3,35620.9,35687.8,35699.3,35766.4,35820.9,35842.2,35873.8,35887.9,35998.6,36039.6,36091.7,36121.9,36164.9,36218.6,36348.1,36440.2,36556.3,36600.2,36856.8,36875.4,36918.8,37063.4,37129.4,37194.6,37321.6,37352.3,37464.3,37639.8,37682.1,37730.1,37785.4,37910.8,38052.5,38093.8,38165.7,38238.9,38436.6,38644.6,38839.2,39511.2,39528.3,39628.5,39657.3,39679.8,39722.1,40360.5,40409.3,40456.8,40488.3,40633.3,40780.1,40827.3,40884.3,40899.2,40940.5,40988.4,41000.4,41025.6,41058.1,41521.7,41674.8,41681.5,41715.5,41766.5,42195.0],"splits":[{"d":1000,"km":1.0,"label":"1","t":256.0,"clock":"10:09:16","chrono":"0:04:16","lat":46.51078,"lon":6.63248},{"d":2000,"km":2.0,"label":"2","t":511.9,"clock":"10:13:32","chrono":"0:08:32","lat":46.50656,"lon":6.64338},{"d":3000,"km":3.0,"label":"3","t":767.9,"clock":"10:17:48","chrono":"0:12:48","lat":46.50658,"lon":6.65621},{"d":4000,"km":4.0,"label":"4","t":1023.8,"clock":"10:22:04","chrono":"0:17:04","lat":46.50635,"lon":6.66869},{"d":5000,"km":5.0,"label":"5","t":1279.8,"clock":"10:26:20","chrono":"0:21:20","lat":46.50396,"lon":6.68085},{"d":6000,"km":6.0,"label":"6","t":1535.7,"clock":"10:30:36","chrono":"0:25:36","lat":46.50059,"lon":6.69229},{"d":7000,"km":7.0,"label":"7","t":1791.7,"clock":"10:34:52","chrono":"0:29:52","lat":46.49702,"lon":6.70381},{"d":8000,"km":8.0,"label":"8","t":2047.6,"clock":"10:39:08","chrono":"0:34:08","lat":46.49134,"lon":6.71356},{"d":9000,"km":9.0,"label":"9","t":2303.6,"clock":"10:43:24","chrono":"0:38:24","lat":46.48747,"lon":6.72444},{"d":10000,"km":10.0,"label":"10","t":2559.5,"clock":"10:47:40","chrono":"0:42:40","lat":46.49101,"lon":6.73602},{"d":11000,"km":11.0,"label":"11","t":2815.5,"clock":"10:51:55","chrono":"0:46:55","lat":46.48844,"lon":6.74797},{"d":12000,"km":12.0,"label":"12","t":3071.5,"clock":"10:56:11","chrono":"0:51:11","lat":46.4829,"lon":6.75774},{"d":13000,"km":13.0,"label":"13","t":3327.4,"clock":"11:00:27","chrono":"0:55:27","lat":46.47773,"lon":6.76788},{"d":14000,"km":14.0,"label":"14","t":3583.4,"clock":"11:04:43","chrono":"0:59:43","lat":46.47434,"lon":6.77963},{"d":15000,"km":15.0,"label":"15","t":3839.3,"clock":"11:08:59","chrono":"1:03:59","lat":46.474,"lon":6.79211},{"d":16000,"km":16.0,"label":"16","t":4095.3,"clock":"11:13:15","chrono":"1:08:15","lat":46.47165,"lon":6.80427},{"d":17000,"km":17.0,"label":"17","t":4351.2,"clock":"11:17:31","chrono":"1:12:31","lat":46.47049,"lon":6.81695},{"d":18000,"km":18.0,"label":"18","t":4607.2,"clock":"11:21:47","chrono":"1:16:47","lat":46.46865,"lon":6.8285},{"d":19000,"km":19.0,"label":"19","t":4863.1,"clock":"11:26:03","chrono":"1:21:03","lat":46.46466,"lon":6.83462},{"d":20000,"km":20.0,"label":"20","t":5119.1,"clock":"11:30:19","chrono":"1:25:19","lat":46.46562,"lon":6.83565},{"d":21000,"km":21.0,"label":"21","t":5375.0,"clock":"11:34:35","chrono":"1:29:35","lat":46.46859,"lon":6.82631},{"d":21097.5,"km":21.0975,"label":"Semi","t":5400.0,"clock":"11:35:00","chrono":"1:30:00","lat":46.46849,"lon":6.82507},{"d":22000,"km":22.0,"label":"22","t":5631.0,"clock":"11:38:51","chrono":"1:33:51","lat":46.47067,"lon":6.81468},{"d":23000,"km":23.0,"label":"23","t":5887.0,"clock":"11:43:07","chrono":"1:38:07","lat":46.47186,"lon":6.80201},{"d":24000,"km":24.0,"label":"24","t":6142.9,"clock":"11:47:23","chrono":"1:42:23","lat":46.47453,"lon":6.78997},{"d":25000,"km":25.0,"label":"25","t":6398.9,"clock":"11:51:39","chrono":"1:46:39","lat":46.47484,"lon":6.77748},{"d":26000,"km":26.0,"label":"26","t":6654.8,"clock":"11:55:55","chrono":"1:50:55","lat":46.4785,"lon":6.7659},{"d":27000,"km":27.0,"label":"27","t":6910.8,"clock":"12:00:11","chrono":"1:55:11","lat":46.48398,"lon":6.7561},{"d":28000,"km":28.0,"label":"28","t":7166.7,"clock":"12:04:27","chrono":"1:59:27","lat":46.4892,"lon":6.74597},{"d":29000,"km":29.0,"label":"29","t":7422.7,"clock":"12:08:43","chrono":"2:03:43","lat":46.4907,"lon":6.73358},{"d":30000,"km":30.0,"label":"30","t":7678.6,"clock":"12:12:59","chrono":"2:07:59","lat":46.4907,"lon":6.73367},{"d":31000,"km":31.0,"label":"31","t":7934.6,"clock":"12:17:15","chrono":"2:12:15","lat":46.48725,"lon":6.73137},{"d":32000,"km":32.0,"label":"32","t":8190.5,"clock":"12:21:31","chrono":"2:16:31","lat":46.48801,"lon":6.72981},{"d":33000,"km":33.0,"label":"33","t":8446.5,"clock":"12:25:46","chrono":"2:20:46","lat":46.489,"lon":6.71814},{"d":34000,"km":34.0,"label":"34","t":8702.5,"clock":"12:30:02","chrono":"2:25:02","lat":46.49477,"lon":6.70845},{"d":35000,"km":35.0,"label":"35","t":8958.4,"clock":"12:34:18","chrono":"2:29:18","lat":46.49945,"lon":6.69767},{"d":36000,"km":36.0,"label":"36","t":9214.4,"clock":"12:38:34","chrono":"2:33:34","lat":46.50222,"lon":6.68592},{"d":37000,"km":37.0,"label":"37","t":9470.3,"clock":"12:42:50","chrono":"2:37:50","lat":46.50491,"lon":6.67392},{"d":38000,"km":38.0,"label":"38","t":9726.3,"clock":"12:47:06","chrono":"2:42:06","lat":46.50676,"lon":6.66187},{"d":39000,"km":39.0,"label":"39","t":9982.2,"clock":"12:51:22","chrono":"2:46:22","lat":46.50646,"lon":6.64908},{"d":40000,"km":40.0,"label":"40","t":10238.2,"clock":"12:55:38","chrono":"2:50:38","lat":46.50612,"lon":6.63769},{"d":41000,"km":41.0,"label":"41","t":10494.1,"clock":"12:59:54","chrono":"2:54:54","lat":46.50532,"lon":6.62843},{"d":42000,"km":42.0,"label":"42","t":10750.1,"clock":"13:04:10","chrono":"2:59:10","lat":46.50933,"lon":6.61948},{"d":42195,"km":42.195,"label":"Arriv\u00e9e","t":10800.0,"clock":"13:05:00","chrono":"3:00:00","lat":46.51046,"lon":6.61759}],"rav":[{"km":5,"name":"Lutry \u00b7 eau","clock":"10:26:20","chrono":"0:21:20","lat":46.50396,"lon":6.68085},{"km":11,"name":"Treytorrens \u00b7 eau, fruits","clock":"10:51:55","chrono":"0:46:55","lat":46.48844,"lon":6.74797},{"km":14,"name":"Rivaz \u00b7 eau, iso, fruits","clock":"11:04:43","chrono":"0:59:43","lat":46.47434,"lon":6.77963},{"km":18,"name":"Corseaux \u00b7 eau, iso, fruits","clock":"11:21:47","chrono":"1:16:47","lat":46.46865,"lon":6.8285},{"km":21,"name":"Corseaux \u00b7 eau, iso, fruits","clock":"11:34:35","chrono":"1:29:35","lat":46.46859,"lon":6.82631},{"km":25,"name":"Rivaz \u00b7 eau, iso, fruits","clock":"11:51:39","chrono":"1:46:39","lat":46.47484,"lon":6.77748},{"km":27,"name":"Treytorrens \u00b7 eau, fruits","clock":"12:00:11","chrono":"1:55:11","lat":46.48398,"lon":6.7561},{"km":30,"name":"Cully \u00b7 eau, iso, fruits","clock":"12:12:59","chrono":"2:07:59","lat":46.4907,"lon":6.73367},{"km":36.4,"name":"Lutry \u00b7 eau, iso","clock":"12:40:17","chrono":"2:35:17","lat":46.5038,"lon":6.68136},{"km":37.5,"name":"Paudex \u00b7 eau","clock":"12:44:58","chrono":"2:39:58","lat":46.50652,"lon":6.66802},{"km":40,"name":"Mus\u00e9e Olympique \u00b7 eau, bananes","clock":"12:55:38","chrono":"2:50:38","lat":46.50612,"lon":6.63769}],"turnIdx":179,"turnKm":19.41};
+const TOTAL=10800,DIST=42195,START=10*3600+5*60;
+const pts=D.pts,cum=D.cum,ti=D.turnIdx;
+let off=0;
+const pad=n=>String(n).padStart(2,'0');
+const hm=t=>{const s=Math.round(t+START+off);return `${pad(Math.floor(s/3600))}:${pad(Math.floor(s%3600/60))}`};
+const hms=t=>{const s=Math.round(t+START+off);return `${hm(t)}:${pad(s%60)}`};
+const tOf=d=>d/DIST*TOTAL;
+const toSec=h=>{const [a,b]=h.split(':');return +a*3600+ +b*60};
+const fmtKm=d=>(d/1000).toFixed(1).replace('.',',');
+
+const map=L.map('map',{zoomControl:true});
+// Fonds swisstopo (gratuits, sans clé, fonctionnent aussi en fichier local)
+const swiss=k=>L.tileLayer(`https://wmts.geo.admin.ch/1.0.0/${k}/default/current/3857/{z}/{x}/{y}.jpeg`,{maxZoom:19,maxNativeZoom:18,attribution:'© swisstopo'});
+const bases={'Carte':swiss('ch.swisstopo.pixelkarte-farbe'),'Carte grise':swiss('ch.swisstopo.pixelkarte-grau'),'Photo aérienne':swiss('ch.swisstopo.swissimage')};
+bases['Carte'].addTo(map);
+L.control.layers(bases,null,{position:'topright'}).addTo(map);
+const ll=pts.map(p=>[p[0],p[1]]);
+L.polyline(ll.slice(0,ti+1),{color:'#1f6fb2',weight:6,opacity:.8}).addTo(map);
+L.polyline(ll.slice(ti),{color:'#d9480f',weight:4,opacity:.85}).addTo(map);
+map.fitBounds(L.latLngBounds(ll),{padding:[20,20]});
+
+const kx=Math.cos(46.49*Math.PI/180)*111320,ky=111320;
+function proj(lat,lon,i0,i1){
+  let best={gap:1e12,d:0};
+  for(let i=i0;i<i1;i++){
+    const ax=pts[i][1]*kx,ay=pts[i][0]*ky,bx=pts[i+1][1]*kx,by=pts[i+1][0]*ky,px=lon*kx,py=lat*ky;
+    const dx=bx-ax,dy=by-ay,L2=dx*dx+dy*dy;let u=L2?((px-ax)*dx+(py-ay)*dy)/L2:0;u=Math.max(0,Math.min(1,u));
+    const g=Math.hypot(px-ax-u*dx,py-ay-u*dy);
+    if(g<best.gap)best={gap:g,d:cum[i]+u*(cum[i+1]-cum[i]),lat:(ay+u*dy)/ky,lon:(ax+u*dx)/kx};
+  }
+  return best;
+}
+function posAt(d){let j=1;while(j<cum.length-1&&cum[j]<d)j++;const a=pts[j-1],b=pts[j],f=cum[j]>cum[j-1]?Math.min(1,Math.max(0,(d-cum[j-1])/(cum[j]-cum[j-1]))):0;return [a[0]+f*(b[0]-a[0]),a[1]+f*(b[1]-a[1])]}
+
+// Bornes km : aller au-dessus (bleu), retour en dessous (orange)
+const kmMajor=L.layerGroup().addTo(map), kmMinor=L.layerGroup();
+const kmMarks=[];
+D.splits.forEach(s=>{
+  if(s.label==='Arrivée')return;
+  const major=s.label==='Semi'||(+s.label)%5===0;
+  const aller=s.d<D.turnKm*1000;
+  const m=L.circleMarker([s.lat,s.lon],{radius:major?5:3.5,color:'#fff',weight:2,fillColor:aller?'#1f6fb2':'#d9480f',fillOpacity:1});
+  m.bindTooltip('',{permanent:true,direction:aller?'top':'bottom',offset:aller?[0,-6]:[0,6],className:'lbl '+(aller?'a':'r')});
+  (major?kmMajor:kmMinor).addLayer(m);kmMarks.push({m,s});
+});
+map.on('zoomend',()=>{if(map.getZoom()>=14)map.addLayer(kmMinor);else map.removeLayer(kmMinor)});
+
+// Départ / demi-tour / arrivée
+const fin=pts[pts.length-1],tp=pts[ti];
+const startM=L.marker(ll[0]).addTo(map),finM=L.marker([fin[0],fin[1]]).addTo(map),turnM=L.circleMarker([tp[0],tp[1]],{radius:7,color:'#13232a',weight:3,fillColor:'#fff',fillOpacity:1}).addTo(map);
+[startM,finM,turnM].forEach(m=>m.bindTooltip('',{permanent:true,direction:'right',offset:[8,0],className:'lbl k'}));
+
+// Tapis de chronométrage officiels
+const MATS=[["Lutry",5000],["Vevey",17900],["Vevey",20300],["Cully",28300],["Lutry",36400]];
+const matMarks=MATS.map(([n,d])=>{
+  const aller=d<D.turnKm*1000;
+  const m=L.marker(posAt(d),{icon:L.divIcon({className:'',html:'<div class="mat"></div>',iconSize:[14,14]}),zIndexOffset:500}).addTo(map);
+  m.bindTooltip('',{permanent:true,direction:aller?'left':'right',offset:aller?[-10,0]:[10,0],className:'lbl chip'});
+  return {m,n,d};
+});
+
+// Gares
+const STATIONS={Lausanne:[46.516793,6.629091],Cully:[46.48856,6.727151],Vevey:[46.463004,6.843447]};
+const stMarks={};
+Object.entries(STATIONS).forEach(([n,p])=>{
+  const m=L.marker(p,{icon:L.divIcon({className:'',html:'<div class="cffi">✚</div>',iconSize:[20,20]}),zIndexOffset:400}).addTo(map);
+  m.bindTooltip('Gare '+n,{direction:'top',offset:[0,-10],className:'lbl cff'});
+  stMarks[n]=m;
+});
+const m2Pos=[46.50747,6.626638];
+L.marker(m2Pos,{icon:L.divIcon({className:'',html:'<div class="cffi" style="background:#0067ac">M</div>',iconSize:[20,20]}),zIndexOffset:400}).addTo(map)
+ .bindTooltip('M2 Ouchy-Olympique',{direction:'top',offset:[0,-10],className:'lbl k'});
+
+// Timeline
+const pCA=proj(46.48856,6.727151,0,ti), pVR=proj(46.463004,6.843447,ti,pts.length-1), pCR=proj(46.48856,6.727151,ti,pts.length-1);
+const PLAN=[
+  {k:'see',d:0,t:'Départ',s:'Place de Milan',pos:ll[0]},
+  {k:'train',l:'R2',dep:'10:24',arr:'10:35',from:'Lausanne',to:'Cully',v:'voie 3',w:12},
+  {k:'see',d:pCA.d,t:'Cully',s:'aller · 3 min de la gare',pos:[pCA.lat,pCA.lon],w:3,n:1},
+  {k:'train',l:'R1',dep:'11:10',arr:'11:19',from:'Cully',to:'Vevey',v:'voie 2',w:3},
+  {k:'see',d:pVR.d,t:'Vevey',s:'retour · 8 min de la gare, vite',pos:[pVR.lat,pVR.lon],w:8,n:2},
+  {k:'train',l:'R1',dep:'11:41',arr:'11:48',from:'Vevey',to:'Cully',v:'voie 1',w:8},
+  {k:'see',d:pCR.d,t:'Cully',s:'retour · même endroit',pos:[pCR.lat,pCR.lon],w:3,n:3},
+  {k:'train',l:'R2',dep:'12:23',arr:'12:35',from:'Cully',to:'Lausanne',v:'voie 2',w:4},
+  {k:'m2',l:'M2',dep:'12:38',arr:'12:44',from:'Lausanne-gare',to:'Ouchy',v:'+10 min à pied'},
+  {k:'see',d:DIST,t:'Arrivée',s:'Place Bellerive',pos:[fin[0],fin[1]],w:10,n:4}
+];
+// Points de rencontre sur la carte
+const eyeMarks=PLAN.filter(s=>s.n).map(s=>{
+  const m=L.marker(s.pos,{icon:L.divIcon({className:'',html:`<div class="eyei">${s.n}</div>`,iconSize:[28,28]}),zIndexOffset:900}).addTo(map);
+  m.bindTooltip('',{permanent:true,direction:'top',offset:[0,-14],className:'lbl eye'});
+  return {m,s};
+});
+const tl=document.getElementById('tl');
+const mgCls=m=>m>=5*60?'ok':m>=2*60?'warn':'bad';
+const mgTxt=m=>m<0?'raté':Math.round(m/60)+' min';
+function renderPlan(){
+  tl.innerHTML='';
+  PLAN.forEach((s,i)=>{
+    const prev=PLAN[i-1];let mg='',h,ic,body;
+    if(s.k==='see'){
+      const t=tOf(s.d);s.at=START+off+t;h=hm(t);ic=s.n||'●';
+      if(prev&&prev.k!=='see'){const m=s.at-toSec(prev.arr)-(s.w||0)*60;mg=`<span class="mg ${mgCls(m)}">${mgTxt(m)}</span>`}
+      body=s.d===0?`<b>${s.t}</b><small>${s.s}</small>`:`<b>${s.t}</b> · il passe à ${hms(t)}<small>${s.s}</small>`;
+    }else{
+      s.at=toSec(s.dep);h=s.dep;ic=s.l;
+      if(prev&&prev.k==='see'){const m=toSec(s.dep)-prev.at-(s.w||0)*60;mg=`<span class="mg ${mgCls(m)}">${mgTxt(m)}</span>`}
+      body=`${s.from} → ${s.to} <b>${s.arr}</b><small>${s.v}</small>`;
+    }
+    const li=document.createElement('li');li.className=s.k==='m2'?'train m2':s.k;
+    li.innerHTML=`<div class="h">${h}</div><div class="ic">${ic}</div><div class="t">${body}</div>${mg||'<span></span>'}`;
+    li.addEventListener('click',()=>map.setView(s.pos||(s.k==='m2'?m2Pos:stMarks[s.from].getLatLng()),15));
+    tl.appendChild(li);s.li=li;
+  });
+}
+
+function refreshLabels(){
+  kmMarks.forEach(({m,s})=>m.setTooltipContent(`${s.label==='Semi'?'Semi':'km '+s.label} <small>·</small> ${hm(s.t)}`));
+  startM.setTooltipContent('Départ '+hm(0));finM.setTooltipContent('Arrivée '+hm(TOTAL));
+  turnM.setTooltipContent('Demi-tour '+hm(tOf(D.turnKm*1000)));
+  matMarks.forEach(({m,n,d})=>m.setTooltipContent(`⏱ ${n} ${fmtKm(d)} km · ${hms(tOf(d))}`));
+  eyeMarks.forEach(({m,s})=>m.setTooltipContent(`${s.t} ${hm(tOf(s.d))}`));
+  renderPlan();renderSplits();
+}
+
+// Temps de passage
+const chr=t=>{const s=Math.round(t);return `${Math.floor(s/3600)}:${pad(Math.floor(s%3600/60))}:${pad(s%60)}`};
+const SPL=D.splits.filter(s=>s.label!=='Arrivée').map(s=>({n:s.label==='Semi'?'Semi':'km '+s.label,d:s.d}))
+  .concat(MATS.map(([n,d])=>({n:`${n} ${fmtKm(d)} km`,d,mat:1})),[{n:"100 m de l'arrivée",d:42095,mat:1},{n:'Arrivée',d:DIST,mat:1}])
+  .sort((a,b)=>a.d-b.d||(b.mat||0)-(a.mat||0)).filter((o,i,arr)=>o.mat||!arr.some(x=>x.mat&&x.d===o.d));
+const splBody=document.getElementById('splits');
+SPL.forEach(o=>{const tr=document.createElement('tr');if(o.mat)tr.className='mrow';tr.addEventListener('click',()=>map.setView(posAt(o.d),15));splBody.appendChild(tr);o.tr=tr});
+function renderSplits(){SPL.forEach(o=>o.tr.innerHTML=`<td>${o.n}</td><td>${hms(tOf(o.d))}</td><td>${chr(tOf(o.d))}</td>`)}
+document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
+  ['plan','splits'].forEach(k=>document.getElementById('tab-'+k).hidden=k!==b.dataset.tab);
+}));
+
+// Toucher le tracé
+map.on('click',e=>{
+  const a=proj(e.latlng.lat,e.latlng.lng,0,ti),r=proj(e.latlng.lat,e.latlng.lng,ti,pts.length-1);
+  if(Math.min(a.gap,r.gap)>400)return;
+  let h='<b>Ici</b><br>';
+  if(a.gap<400)h+=`<span style="color:#1f6fb2">Aller : <b>${hms(tOf(a.d))}</b></span><br>`;
+  if(r.gap<400)h+=`<span style="color:#d9480f">Retour : <b>${hms(tOf(r.d))}</b></span>`;
+  L.popup().setLatLng(e.latlng).setContent(h).openOn(map);
+});
+
+// Coureur
+const runner=L.marker(ll[0],{icon:L.divIcon({className:'',html:'<div class="runner"></div>',iconSize:[22,22]}),zIndexOffset:1000}).addTo(map);
+const slider=document.getElementById('t');
+function render(t){
+  t=Math.max(0,Math.min(TOTAL,t));const d=t/TOTAL*DIST;
+  runner.setLatLng(posAt(d));
+  document.getElementById('clk').textContent=hms(t);
+  document.getElementById('pos').textContent=t>=TOTAL?'Arrivé !':`km ${fmtKm(d)}`;
+  slider.value=t;
+  const now=START+off+t;let nextSet=false;
+  SPL.forEach(o=>o.tr.classList.toggle('past',tOf(o.d)<t));
+  PLAN.forEach(s=>{const past=s.at<now;s.li.classList.toggle('past',past);const nx=!past&&!nextSet;if(nx)nextSet=true;s.li.classList.toggle('next',nx)});
+}
+slider.addEventListener('input',()=>{setLive(false);showMsg('');render(+slider.value);document.getElementById('state').textContent='simulation'});
+
+function zurichNow(){
+  const f=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Zurich',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  const o={};f.formatToParts(new Date()).forEach(p=>o[p.type]=p.value);
+  return {date:`${o.year}-${o.month}-${o.day}`,sec:(+o.hour%24)*3600+(+o.minute)*60+(+o.second)};
+}
+let timer=null,demo=null;const liveBtn=document.getElementById('live'),state=document.getElementById('state'),msg=document.getElementById('msg');
+const showMsg=t=>{msg.textContent=t;msg.hidden=!t};
+function raceTime(){const n=zurichNow();return n.date==='2026-10-25'?n.sec-START-off:null}
+function tick(){
+  const t=raceTime();
+  if(t===null){setLive(false);return}
+  if(t<0){state.textContent='en direct · départ dans '+Math.ceil(-t/60)+' min';render(0);return}
+  if(t>TOTAL){state.textContent='en direct · course terminée';render(TOTAL);return}
+  state.textContent='en direct · position théorique';render(t);
+}
+function stopDemo(){if(demo){cancelAnimationFrame(demo);demo=null}}
+function runDemo(){
+  stopDemo();let last=0,t=0;
+  const step=ts=>{if(last)t+=(ts-last)*0.36;last=ts;render(t);if(t<TOTAL&&demo)demo=requestAnimationFrame(step);else{demo=null;liveBtn.classList.remove('on');liveBtn.textContent='En direct'}};
+  demo=requestAnimationFrame(step);
+}
+function setLive(on){
+  if(timer){clearInterval(timer);timer=null}
+  stopDemo();liveBtn.classList.toggle('on',on);liveBtn.textContent=on?'■ Stop':'En direct';
+  if(!on){showMsg('');return}
+  if(raceTime()===null){
+    state.textContent='démo';
+    showMsg('Le direct démarre dimanche 25 octobre à 10:05. En attendant, voici la course en accéléré (30 s).');
+    runDemo();return;
+  }
+  showMsg('');tick();timer=setInterval(tick,5000);
+}
+liveBtn.addEventListener('click',()=>setLive(!(timer||demo)));
+document.getElementById('off').addEventListener('input',e=>{off=Math.max(0,+e.target.value||0)*60;refreshLabels();if(timer)tick();else render(+slider.value)});
+
+refreshLabels();
+if(raceTime()!==null)setLive(true);else{render(0);state.textContent='direct dimanche dès 10:05'}
+</script>
+</body>
+</html>
