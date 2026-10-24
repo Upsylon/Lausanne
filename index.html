@@ -66,6 +66,9 @@ tbody tr{cursor:pointer}
 .cffi{width:20px;height:20px;background:var(--cff);border-radius:4px;color:#fff;font:800 13px/20px system-ui;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.35)}
 .mat{width:14px;height:14px;transform:rotate(45deg);background:var(--gold);border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)}
 .eyei{width:28px;height:28px;border-radius:50%;background:var(--gold);border:3px solid #fff;color:#fff;font:800 14px/22px system-ui;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.nolabels .leaflet-tooltip-pane{display:none}
+.lblbtn{background:#fff;border:2px solid rgba(0,0,0,.2);border-radius:6px;padding:5px 9px;font:700 13px system-ui,sans-serif;color:var(--ink);cursor:pointer}
+.lblbtn.off{color:var(--muted);text-decoration:line-through}
 .leaflet-popup-content{font-size:15px;line-height:1.45}
 </style>
 </head>
@@ -113,6 +116,16 @@ const swiss=k=>L.tileLayer(`https://wmts.geo.admin.ch/1.0.0/${k}/default/current
 const bases={'Carte':swiss('ch.swisstopo.pixelkarte-farbe'),'Carte grise':swiss('ch.swisstopo.pixelkarte-grau'),'Photo aérienne':swiss('ch.swisstopo.swissimage')};
 bases['Carte'].addTo(map);
 L.control.layers(bases,null,{position:'topright'}).addTo(map);
+// Bouton pour masquer / afficher les bulles
+const LblCtl=L.Control.extend({options:{position:'topleft'},onAdd(){
+  const b=L.DomUtil.create('button','lblbtn');b.type='button';
+  let on=true;try{on=localStorage.getItem('bulles')!=='off'}catch(e){}
+  const apply=()=>{map.getContainer().classList.toggle('nolabels',!on);b.classList.toggle('off',!on);b.textContent=on?'💬 Bulles':'💬 Bulles';b.title=on?'Masquer les bulles':'Afficher les bulles';b.setAttribute('aria-pressed',on)};
+  L.DomEvent.disableClickPropagation(b);
+  b.addEventListener('click',()=>{on=!on;try{localStorage.setItem('bulles',on?'on':'off')}catch(e){}apply()});
+  setTimeout(apply,0);return b;
+}});
+new LblCtl().addTo(map);
 const ll=pts.map(p=>[p[0],p[1]]);
 L.polyline(ll.slice(0,ti+1),{color:'#1f6fb2',weight:6,opacity:.8}).addTo(map);
 L.polyline(ll.slice(ti),{color:'#d9480f',weight:4,opacity:.85}).addTo(map);
