@@ -114,7 +114,7 @@ const map=L.map('map',{zoomControl:true});
 // Fonds swisstopo (gratuits, sans clé, fonctionnent aussi en fichier local)
 const swiss=k=>L.tileLayer(`https://wmts.geo.admin.ch/1.0.0/${k}/default/current/3857/{z}/{x}/{y}.jpeg`,{maxZoom:19,maxNativeZoom:18,attribution:'© swisstopo'});
 const bases={'Carte':swiss('ch.swisstopo.pixelkarte-farbe'),'Carte grise':swiss('ch.swisstopo.pixelkarte-grau'),'Photo aérienne':swiss('ch.swisstopo.swissimage')};
-bases['Carte'].addTo(map);
+bases['Photo aérienne'].addTo(map);
 L.control.layers(bases,null,{position:'topright'}).addTo(map);
 // Bouton pour masquer / afficher les bulles
 const LblCtl=L.Control.extend({options:{position:'topleft'},onAdd(){
